@@ -1,0 +1,184 @@
+/*
+Ce Projet est réalisé par  :  BOULMANE Jamila et EL MOUTAOUAKIL Taoufiq
+*/
+SYSTEM
+     speed_control_system
+SETS 
+  Radar_state={Ready,Dirty,NotReady};//indique statut des capteurs de radar 
+  Positions={forward,up,Down,backward,up5,head,Neutral};
+  KeyPositions={NoKeyInserted, KeyInserted, KeyInIgnitionOnPosition};
+  traffic_state={None,Unlimited};
+  ControlMode_state={cruiseControl, AdaptiveCruiseControl} 
+ 
+  
+  
+  
+VARIABLES
+  engineOn,
+  brakeLight,
+  currentSpeed,
+  currentDistance,
+  gasPedal,
+  Angelbrakepedal,
+  keyState,
+  setVehicleSpeed,
+  desiredSpeed,
+  speedLimit,
+  cruiseControlLever,
+  trafficSignDetectionOn,
+  detectedTrafficSign,
+  rangeRadarSensor,
+  rangeRadarState,
+  cruiseControlMode,
+  acousticWarningOn,
+  visualWarningOn,
+  speedLimiterSwitchOn
+INVARIANT
+ engineOn:BOOL &//indique l'état de moteur de voiture
+ brakeLight:0..100 &//modifie la qualité de l'éclairage de frein
+ currentSpeed:0..500 & //indique la vitesse courant de la voiture
+ currentDistance:INT & // indique la distance actuel 
+ gasPedal:0..225 &//indique l'angle de pédale de vitesse
+ Angelbrakepedal:0..45 &//indique l'angle de pédale de frein 
+ keyState:KeyPositions & //indique l'état de la clé
+ setVehicleSpeed:0..100 & //Utilisé pour contrôler le moteur via le régulateur de vitesse
+ desiredSpeed:0..500 & //indique la vitesse souhaitée
+ speedLimit:BOOL &// Permet de limiter la vitesse de voiture 
+ cruiseControlLever:Positions &//Permet de  gérer les différents position de levier 
+ trafficSignDetectionOn:BOOL &//Indique le mode de fonctionnement du trafic de  détection de signe
+ detectedTrafficSign:traffic_state & //indique la limite  de vitesse du panneau de signalisation observé
+ rangeRadarSensor:0..255 &//indique l'évaluation du capteur radar
+ rangeRadarState:Radar_state &//indique l'état de capteur de radar
+ cruiseControlMode:ControlMode_state &//indique le mode de fonctionnement du régulateur de vitesse
+ acousticWarningOn:BOOL &//indique la commande d'avertissement acoustique
+ visualWarningOn:BOOL & //indique la commande d'avertissement visuel
+ speedLimiterSwitchOn:BOOL &// indique l'état de  limiteur de vitesse
+ 
+ //Si on tourne le cruiseControlLever à droite ou à gauche  , le cruiseControlMode sera activer avec en  mode  cruiseControl(normal)
+ cruiseControlLever=forward or cruiseControlLever=backward =>cruiseControlMode= cruiseControl & desiredSpeed=currentSpeed & 
+ 
+ //Si on tourne  cruiseControlLever vers le haut , le  desiredSpeed(la vitesse souhaitée) sera augmenté 
+ cruiseControlLever=up =>desiredSpeed >0 &
+ 
+  //Si on tourne  cruiseControlLever Vers le bas , le  desiredSpeed(la vitesse souhaitée) sera diminué   
+ cruiseControlLever=Down  =>desiredSpeed <0 &
+ 
+//Si le speedLimiterSwitchOn est false , le gasPedal prend la valeur 225 et le  setVehicleSpeed prend la  valeur 100
+speedLimiterSwitchOn=FALSE   =>gasPedal=225 & setVehicleSpeed=100 &
+
+//Si l'Angelbrakepedal est supérieur à 0 et on tourne  cruiseControlLever à gauche   , le cruiseControlMode sera activer en mode  cruiseControl(normal)
+Angelbrakepedal >0 & cruiseControlLever=backward  => cruiseControlMode= cruiseControl &
+
+
+//Si le trafficSignDetectionOn est vrai et le gasPedal est nul , la vitesse de voiture va être modifié  
+trafficSignDetectionOn=TRUE & gasPedal=0 =>setVehicleSpeed >0 & 
+
+//Si le detectedTrafficSign est Illimité et le desiredSpeed inférieur à 120, la vitesse de voiture devient 120Km/h
+detectedTrafficSign=Unlimited & desiredSpeed <120   =>setVehicleSpeed=120 &
+
+
+
+
+
+//la commande d'avertissement visuel activé si la distance actuelle inférieur à la relation  (la vitesse actuelle/3.6 )
+ currentDistance<(currentSpeed/3)*2 => visualWarningOn=TRUE &
+ 
+// la commande d'avertissement acoustique activé si la distance actuelle inférieur à la relation  (la vitesse actuelle/3.6 )*0.8
+currentDistance<(currentSpeed/3) => acousticWarningOn=TRUE &
+ 
+ //État limite de la vitesse activé quand en appuyant sur le bouton situé sur la tête  du levier du régulateur de vitesse noté ici up5 ou si le  gasPedal  égal à 202 ou levier du régulateur de vitesse dans la position backward 
+  cruiseControlLever=up5 or  gasPedal<202 or cruiseControlLever=backward => speedLimit=TRUE &
+
+
+//rangeRadarState prend les valeurs Dirty ou NotReady si rangeRadarSensor prend la valeur 255 
+ rangeRadarSensor=255 => rangeRadarState=Dirty or rangeRadarState=NotReady &
+ 
+  // si la vitesse souhaite inférieur à la vitesse actuelle alors le gasPedal prend une valeur supérieur à 0 ou brakePedal prend une valeur supérieur à 0
+ desiredSpeed < currentSpeed => gasPedal>0 or Angelbrakepedal>0 &
+ 
+ 
+ //si gasPedal supérieur à 0 alors brakeLight prend la valeur 100
+ gasPedal >0 => brakeLight=100 
+
+
+INITIALISATION
+     engineOn:=FALSE
+  ||   brakeLight:= 0
+  || currentSpeed:=0
+  || currentDistance:=0
+  || gasPedal:=0
+  || Angelbrakepedal:=0
+  || keyState:=NoKeyInserted
+  || setVehicleSpeed:=0
+  || desiredSpeed:=0
+  || speedLimit:=FALSE
+  || cruiseControlLever:=Neutral
+  || trafficSignDetectionOn:=FALSE
+  || detectedTrafficSign:=None
+  || rangeRadarSensor:=0
+  || rangeRadarState:=NotReady
+  || cruiseControlMode:=cruiseControl
+  || acousticWarningOn:=FALSE
+  || visualWarningOn:=FALSE
+  || speedLimiterSwitchOn:=FALSE
+
+EVENTS
+//Démarrer la voiture
+
+demarrerVoiture=
+SELECT 
+    keyState=NoKeyInserted  & engineOn=FALSE 
+THEN
+    
+    engineOn:=TRUE ||
+    keyState:=KeyInIgnitionOnPosition
+    
+END;
+
+
+//Arrêter la voiture
+
+arreterVoiture=
+SELECT
+   currentSpeed=0 & keyState/=KeyInserted & engineOn/=FALSE
+THEN
+    engineOn:=FALSE ||
+    keyState:=KeyInIgnitionOnPosition 
+    
+END;
+
+//Extraire la clé
+extraireCle=
+SELECT
+        keyState/=NoKeyInserted & engineOn=TRUE
+ THEN
+  keyState:=NoKeyInserted
+END;
+
+// augmenter la vitesse de la voiture
+accelerate=
+SELECT 
+engineOn=TRUE &   Angelbrakepedal=0 & currentSpeed<180
+THEN
+currentSpeed:=currentSpeed+20 ||
+Angelbrakepedal:=0 ||
+brakeLight:=0
+END;
+
+
+// freiner la voiture
+Brake=
+SELECT 
+engineOn=TRUE & Angelbrakepedal<45 & brakeLight<=100
+THEN
+brakeLight:=brakeLight+25 ||
+BEGIN
+IF ( currentSpeed>0)
+THEN 
+currentSpeed:=currentSpeed-20
+
+END
+END
+END
+END
+
